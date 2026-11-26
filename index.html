@@ -358,14 +358,14 @@ function renderChips(){
   const lists = { product:S.products, site:S.sites, channel:S.channels };
   document.querySelectorAll('.chips').forEach(box=>{
     const g = box.dataset.group;
-    box.innerHTML = lists[g].map(v=>`<button type="button" class="chip${sel[g]===v?' on':''}" data-v="${esc(v)}">${esc(v)}</button>`).join('');
+    const opts = lists[g].slice(); if(sel[g] && !opts.includes(sel[g])) opts.push(sel[g]);
+    box.innerHTML = `<select class="pick" data-group="${g}" style="max-width:320px"><option value="">선택하세요</option>`+
+      opts.map(v=>`<option value="${esc(v)}"${sel[g]===v?' selected':''}>${esc(v)}</option>`).join('')+'</select>';
   });
 }
-document.addEventListener('click', e=>{
-  const c = e.target.closest('.chip'); if(!c) return;
-  const g = c.parentElement.dataset.group;
-  sel[g] = sel[g]===c.dataset.v ? '' : c.dataset.v;
-  renderChips();
+document.addEventListener('change', e=>{
+  const s = e.target.closest('select.pick'); if(!s) return;
+  sel[s.dataset.group] = s.value;
 });
 
 // ---- 붙여넣기 ----
