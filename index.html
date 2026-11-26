@@ -84,6 +84,7 @@ th{background:#f8f9fb;color:var(--sub);font-weight:600;white-space:nowrap}
 <header>
   <h1>2배속제작소 · 개별주문 주문서</h1>
   <span class="sp"></span>
+  <button class="btn pri" id="btnPrint">🖨 A4 주문서 인쇄</button>
   <button class="btn" id="btnSettings">⚙ 설정</button>
 </header>
 <main>
@@ -137,7 +138,6 @@ th{background:#f8f9fb;color:var(--sub);font-weight:600;white-space:nowrap}
     <div class="toolbar">
       <button class="btn pri big" id="btnInvoice">📦 송장서식 엑셀 자동생성</button>
       <button class="btn" id="btnOrderXlsx">주문목록 엑셀 저장</button>
-      <button class="btn" id="btnPrint">🖨 A4 주문서 인쇄</button>
       <button class="btn" id="btnBackup">기록 파일 저장</button>
       <button class="btn" id="btnRestore">기록 불러오기</button>
       <input type="file" id="fileRestore" accept=".json,application/json" hidden>
