@@ -651,7 +651,6 @@ function printSheet(o){
     <tr><th>배송요청</th><td colspan="3">${esc(o.req||'')}</td></tr>
     <tr><th>메모</th><td colspan="3" class="free"></td></tr>
   </table>
-  <div class="checks"><span>☐ 시안확인</span><span>☐ 제작</span><span>☐ 검수</span><span>☐ 포장</span><span>☐ 발송</span></div>
   <div class="foot"><span>2배속제작소 · 주문 제작 작업지시서</span><span>No. ${esc(String(o.id||'').toUpperCase())}</span></div>
 </div>`;
 }
