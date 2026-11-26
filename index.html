@@ -101,6 +101,7 @@ th{background:#f8f9fb;color:var(--sub);font-weight:600;white-space:nowrap}
     <div class="row"><label>상담채널</label><div class="chips" data-group="channel"></div></div>
     <div class="row"><label>구매사이트</label><div class="chips" data-group="site"></div></div>
     <div class="row"><label>상품명</label><div class="chips" data-group="product"></div></div>
+    <div id="customRows" style="display:contents"></div>
     <div class="row"><label>수량</label><div class="inline"><input type="number" id="fQty" min="1" value="1" style="max-width:120px"></div></div>
     <div class="row"><label>제작 메모</label><div id="memoList" style="display:grid;gap:6px"></div></div>
     <div class="row"><label>제작파일</label><input type="text" id="fFile" placeholder="파일 이름이나 위치 (예: N:\작업\박혜영_머리띠.ai)"></div>
@@ -175,6 +176,11 @@ th{background:#f8f9fb;color:var(--sub);font-weight:600;white-space:nowrap}
   <label class="hint">상품명 목록 (쉼표로 구분)</label><input type="text" id="sProducts">
   <label class="hint" style="display:block;margin-top:8px">구매사이트 목록</label><input type="text" id="sSites">
   <label class="hint" style="display:block;margin-top:8px">상담채널 목록</label><input type="text" id="sChannels">
+  <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+    <b style="font-size:13px">추가 선택 항목</b> <span class="hint">항목 이름과 목록(쉼표로 구분)을 적으면 01 주문 상품에 드롭다운으로 생겨요</span>
+    <div id="customEdit" style="display:grid;gap:6px;margin-top:8px"></div>
+    <button type="button" class="btn sm" id="btnCustomAdd" style="margin-top:6px">＋ 항목 추가</button>
+  </div>
   <div class="grid2" style="margin-top:8px">
     <div><label class="hint">운임Type 기본값</label><input type="text" id="sFare"></div>
     <div><label class="hint">배송결제 기본값 (신용/착불)</label><input type="text" id="sPay"></div>
@@ -387,7 +393,7 @@ const DEF = {
 let S = Object.assign({}, DEF, LS.get('xx2_settings', {}));
 let orders = LS.get('xx2_orders', []);
 let editingId = null;
-const sel = { product:'', site:'', channel:'' };
+const sel = { product:'', site:'', channel:'', extra:{} };
 
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),2200); }
 function today(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -407,6 +413,32 @@ document.addEventListener('change', e=>{
   const s = e.target.closest('select.pick'); if(!s) return;
   sel[s.dataset.group] = s.value;
 });
+
+// ---- 추가 선택 항목 (설정에서 직접 추가/삭제) ----
+function renderCustom(){
+  const box=$('customRows'); box.innerHTML='';
+  (S.custom||[]).forEach(c=>{
+    const row=document.createElement('div'); row.className='row';
+    const lb=document.createElement('label'); lb.textContent=c.label;
+    const s=document.createElement('select'); s.style.maxWidth='320px';
+    const opts=c.options.slice(); const cur=sel.extra[c.label]||''; if(cur && !opts.includes(cur)) opts.push(cur);
+    s.appendChild(new Option('선택하세요',''));
+    opts.forEach(v=>{ const op=new Option(v,v); if(v===cur) op.selected=true; s.appendChild(op); });
+    s.onchange=()=>{ sel.extra[c.label]=s.value; };
+    const wrap=document.createElement('div'); wrap.appendChild(s);
+    row.append(lb,wrap); box.appendChild(row);
+  });
+}
+function cleanExtra(){ const o={}; (S.custom||[]).forEach(c=>{ const v=sel.extra[c.label]; if(v) o[c.label]=v; }); return o; }
+function customEditRow(c){
+  const r=document.createElement('div'); r.className='inline cerow';
+  r.innerHTML='<input type="text" class="clabel" placeholder="항목 이름 (예: 색상)" style="max-width:150px"><input type="text" class="copts" placeholder="목록 (예: 핑크, 하늘, 노랑)"><button type="button" class="btn" title="이 항목 빼기">−</button>';
+  r.querySelector('.clabel').value=c?c.label:''; r.querySelector('.copts').value=c?c.options.join(', '):'';
+  r.querySelector('button').onclick=()=>r.remove();
+  return r;
+}
+$('btnCustomAdd').onclick=()=>{ const r=customEditRow(null); $('customEdit').appendChild(r); r.querySelector('input').focus(); };
+renderCustom();
 
 // ---- 붙여넣기 ----
 $('btnPaste').onclick = async ()=>{
@@ -568,7 +600,7 @@ function readForm(){
   const same = $('fSame').checked;
   return {
     date:$('fDate').value, channel:sel.channel, site:sel.site, product:sel.product,
-    qty: Math.max(1, parseInt($('fQty').value,10)||1), memo:getMemo(), file:$('fFile').value.trim(),
+    qty: Math.max(1, parseInt($('fQty').value,10)||1), memo:getMemo(), extra:cleanExtra(), file:$('fFile').value.trim(),
     name:$('fName').value.trim(), phone:$('fPhone').value.trim(), zip:$('fZip').value.trim(),
     addr:$('fAddr').value.trim(), detail:$('fDetail').value.trim(),
     same, buyer: same?'':$('fBuyer').value.trim(), buyerPhone: same?'':$('fBuyerPhone').value.trim(),
@@ -576,7 +608,7 @@ function readForm(){
   };
 }
 function fillForm(o){
-  $('fDate').value=o.date||today(); sel.channel=o.channel||''; sel.site=o.site||''; sel.product=o.product||'';
+  $('fDate').value=o.date||today(); sel.channel=o.channel||''; sel.site=o.site||''; sel.product=o.product||''; sel.extra=Object.assign({}, o.extra||{}); renderCustom();
   $('fQty').value=o.qty||1; setMemo(o.memo); $('fFile').value=o.file||'';
   $('fName').value=o.name||''; $('fPhone').value=o.phone||''; $('fZip').value=o.zip||''; $('fAddr').value=o.addr||''; $('fDetail').value=o.detail||'';
   $('fSame').checked = o.same!==false; $('fSame').onchange(); $('fBuyer').value=o.buyer||''; $('fBuyerPhone').value=o.buyerPhone||'';
@@ -607,7 +639,7 @@ function render(){
   if(!orders.length){ tb.innerHTML='<tr><td colspan="12" class="empty">아직 주문이 없어요</td></tr>'; }
   else tb.innerHTML = orders.map(o=>`<tr data-id="${o.id}">
     <td><input type="checkbox" class="rowchk" ${o.checked?'checked':''}></td>
-    <td>${esc((o.date||'').slice(5))}</td><td>${esc(o.channel)}</td><td>${esc(o.site)}</td><td>${esc(o.product)}${o.file?'<div class="hint">파일: '+esc(o.file)+'</div>':''}${o.memo?'<div class="hint">'+o.memo.split(' / ').map(esc).join('<br>')+'</div>':''}</td><td>${o.qty}</td>
+    <td>${esc((o.date||'').slice(5))}</td><td>${esc(o.channel)}</td><td>${esc(o.site)}</td><td>${esc(o.product)}${o.extra&&Object.keys(o.extra).length?'<div class="hint">'+Object.entries(o.extra).map(([k,v])=>esc(k)+': '+esc(v)).join(' · ')+'</div>':''}${o.file?'<div class="hint">파일: '+esc(o.file)+'</div>':''}${o.memo?'<div class="hint">'+o.memo.split(' / ').map(esc).join('<br>')+'</div>':''}</td><td>${o.qty}</td>
     <td>${esc(o.name)}${!o.same&&o.buyer?'<div class="hint">주문: '+esc(o.buyer)+'</div>':''}</td><td>${esc(o.phone)}</td><td>${esc(o.zip)||'<span style="color:var(--danger)">없음</span>'}</td>
     <td>${esc(o.addr)} ${esc(o.detail)}</td><td>${esc(o.req)}</td>
     <td style="white-space:nowrap"><button class="btn sm" data-act="edit">수정</button> <button class="btn sm" data-act="copy">복사</button> <button class="btn sm" data-act="fav" title="단골로 저장">★</button> <button class="btn sm danger" data-act="del">삭제</button></td></tr>`).join('');
@@ -643,6 +675,7 @@ function printSheet(o){
   <table>
     <tr><th>상품명</th><td class="big">${esc(o.product)}</td><th>수량</th><td class="big">${o.qty}</td></tr>
     <tr><th>구매사이트</th><td>${esc(o.site)}</td><th>상담채널</th><td>${esc(o.channel)}</td></tr>
+    ${Object.entries(o.extra||{}).map(([k,v])=>`<tr><th>${esc(k)}</th><td colspan="3">${esc(v)}</td></tr>`).join('')}
     <tr><th>제작 메모</th><td colspan="3" class="memo">${memo.length?memo.map(m=>'<div>☐ '+esc(m)+'</div>').join(''):'&nbsp;'}</td></tr>
     <tr><th>제작파일</th><td colspan="3">${esc(o.file||'')}</td></tr>
     <tr><th>수취인</th><td class="big">${esc(o.name)}</td><th>연락처</th><td>${esc(o.phone)}</td></tr>
@@ -730,17 +763,18 @@ $('btnInvoice').onclick = async ()=>{
 $('btnOrderXlsx').onclick = async ()=>{
   const list = targets(); if(!list.length){ toast('주문이 없어요'); return; }
   const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('주문목록');
-  const head=['상담날짜','상담채널','구매사이트','상품명','수량','제작메모','제작파일','수취인명','전화번호','우편번호','기본주소','상세주소','주문자명','주문자전화','배송요청사항'];
-  ws.columns = [12,11,12,20,6,30,30,10,15,9,40,20,10,15,20].map(w=>({width:w}));
+  const xLabels=[...new Set([...(S.custom||[]).map(c=>c.label), ...list.flatMap(o=>Object.keys(o.extra||{}))])];
+  const head=['상담날짜','상담채널','구매사이트','상품명','수량','제작메모','제작파일','수취인명','전화번호','우편번호','기본주소','상세주소','주문자명','주문자전화','배송요청사항'].concat(xLabels);
+  ws.columns = [12,11,12,20,6,30,30,10,15,9,40,20,10,15,20].concat(xLabels.map(()=>16)).map(w=>({width:w}));
   const h=ws.addRow(head); h.eachCell(c=>{ c.font={bold:true,color:{argb:'FFFFFFFF'}}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1C7AE1'}}; });
-  list.forEach(o=>ws.addRow([o.date,o.channel,o.site,o.product,o.qty,o.memo,o.file||'',o.name,o.phone,o.zip,o.addr,o.detail,o.same===false?o.buyer:o.name,o.same===false?o.buyerPhone:o.phone,o.req]));
+  list.forEach(o=>ws.addRow([o.date,o.channel,o.site,o.product,o.qty,o.memo,o.file||'',o.name,o.phone,o.zip,o.addr,o.detail,o.same===false?o.buyer:o.name,o.same===false?o.buyerPhone:o.phone,o.req].concat(xLabels.map(l=>(o.extra||{})[l]||''))));
   await download(wb, `주문목록_${ymd()}.xlsx`);
 };
 
 // ---- 설정 ----
 function openSettings(){
   $('sJuso').value=S.jusoKey; $('sKakao').value=S.kakaoKey; $('sProducts').value=S.products.join(', '); $('sSites').value=S.sites.join(', ');
-  $('sChannels').value=S.channels.join(', '); $('sFare').value=S.fare; $('sPay').value=S.pay; $('sTab').checked=!!S.tab;
+  $('sChannels').value=S.channels.join(', '); $('customEdit').innerHTML=''; (S.custom||[]).forEach(c=>$('customEdit').appendChild(customEditRow(c))); $('sFare').value=S.fare; $('sPay').value=S.pay; $('sTab').checked=!!S.tab;
   $('mSettings').classList.add('on');
 }
 $('btnSettings').onclick = openSettings;
@@ -748,6 +782,7 @@ const splitList = v => v.split(',').map(x=>x.trim()).filter(Boolean);
 $('btnSaveSettings').onclick = ()=>{
   S.jusoKey=$('sJuso').value.trim(); S.kakaoKey=$('sKakao').value.trim();
   S.products=splitList($('sProducts').value)||DEF.products; S.sites=splitList($('sSites').value); S.channels=splitList($('sChannels').value);
+  S.custom=[...document.querySelectorAll('#customEdit .cerow')].map(r=>({label:r.querySelector('.clabel').value.trim(), options:splitList(r.querySelector('.copts').value)})).filter(c=>c.label && c.options.length); renderCustom();
   S.fare=$('sFare').value.trim(); S.pay=$('sPay').value.trim(); S.tab=$('sTab').checked;
   LS.set('xx2_settings', S); renderChips(); $('mSettings').classList.remove('on'); toast('설정을 저장했어요');
 };
