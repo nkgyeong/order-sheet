@@ -71,7 +71,7 @@ th{background:#f8f9fb;color:var(--sub);font-weight:600;white-space:nowrap}
     <div class="row"><label>구매사이트</label><div class="chips" data-group="site"></div></div>
     <div class="row"><label>상품명</label><div class="chips" data-group="product"></div></div>
     <div class="row"><label>수량</label><div class="inline"><input type="number" id="fQty" min="1" value="1" style="max-width:120px"></div></div>
-    <div class="row"><label>제작 메모</label><input type="text" id="fMemo" placeholder="이름/문구/색상 등 (송장에는 들어가지 않아요)"></div>
+    <div class="row"><label>제작 메모</label><div id="memoList" style="display:grid;gap:6px"></div></div>
   </section>
 
   <!-- 02 고객 정보 -->
@@ -475,13 +475,27 @@ async function openDaum(q){
   }).embed(layer, { q: q || '', autoClose: true });
 }
 
+// ---- 제작 메모 (+ / −) ----
+function memoRow(v){
+  const row=document.createElement('div'); row.className='inline';
+  const inp=document.createElement('input'); inp.type='text'; inp.className='memoInp'; inp.value=v||''; inp.placeholder='이름/문구/색상 등 (송장에는 들어가지 않아요)';
+  const minus=document.createElement('button'); minus.type='button'; minus.className='btn'; minus.textContent='−'; minus.title='이 메모 빼기';
+  minus.onclick=()=>{ if($('memoList').children.length>1) row.remove(); else inp.value=''; };
+  const plus=document.createElement('button'); plus.type='button'; plus.className='btn'; plus.textContent='＋'; plus.title='아래에 메모 추가';
+  plus.onclick=()=>{ const r=memoRow(''); row.after(r); r.querySelector('input').focus(); };
+  row.append(inp,plus,minus); return row;
+}
+function setMemo(s){ const box=$('memoList'); box.innerHTML=''; const arr=String(s||'').split(' / '); arr.forEach(v=>box.appendChild(memoRow(v))); }
+function getMemo(){ return [...document.querySelectorAll('.memoInp')].map(i=>i.value.trim()).filter(Boolean).join(' / '); }
+setMemo('');
+
 // ---- 주문 저장 ----
 $('fSame').onchange = ()=>{ $('buyerBox').style.display = $('fSame').checked?'none':'grid'; };
 function readForm(){
   const same = $('fSame').checked;
   return {
     date:$('fDate').value, channel:sel.channel, site:sel.site, product:sel.product,
-    qty: Math.max(1, parseInt($('fQty').value,10)||1), memo:$('fMemo').value.trim(),
+    qty: Math.max(1, parseInt($('fQty').value,10)||1), memo:getMemo(),
     name:$('fName').value.trim(), phone:$('fPhone').value.trim(), zip:$('fZip').value.trim(),
     addr:$('fAddr').value.trim(), detail:$('fDetail').value.trim(),
     same, buyer: same?'':$('fBuyer').value.trim(), buyerPhone: same?'':$('fBuyerPhone').value.trim(),
@@ -490,13 +504,13 @@ function readForm(){
 }
 function fillForm(o){
   $('fDate').value=o.date||today(); sel.channel=o.channel||''; sel.site=o.site||''; sel.product=o.product||'';
-  $('fQty').value=o.qty||1; $('fMemo').value=o.memo||'';
+  $('fQty').value=o.qty||1; setMemo(o.memo);
   $('fName').value=o.name||''; $('fPhone').value=o.phone||''; $('fZip').value=o.zip||''; $('fAddr').value=o.addr||''; $('fDetail').value=o.detail||'';
   $('fSame').checked = o.same!==false; $('fSame').onchange(); $('fBuyer').value=o.buyer||''; $('fBuyerPhone').value=o.buyerPhone||'';
   $('fReq').value=o.req||''; renderChips();
 }
 function resetCustomer(){
-  ['fName','fPhone','fZip','fAddr','fDetail','fBuyer','fBuyerPhone','fReq','pasteBox','fMemo'].forEach(id=>$(id).value='');
+  ['fName','fPhone','fZip','fAddr','fDetail','fBuyer','fBuyerPhone','fReq','pasteBox'].forEach(id=>$(id).value=''); setMemo('');
   $('fQty').value=1; $('fSame').checked=true; $('fSame').onchange();
   $('cands').innerHTML=''; setStatus('zipStatus',''); setStatus('pasteStatus','');
 }
@@ -520,7 +534,7 @@ function render(){
   if(!orders.length){ tb.innerHTML='<tr><td colspan="12" class="empty">아직 주문이 없어요</td></tr>'; }
   else tb.innerHTML = orders.map(o=>`<tr data-id="${o.id}">
     <td><input type="checkbox" class="rowchk" ${o.checked?'checked':''}></td>
-    <td>${esc((o.date||'').slice(5))}</td><td>${esc(o.channel)}</td><td>${esc(o.site)}</td><td>${esc(o.product)}${o.memo?'<div class="hint">'+esc(o.memo)+'</div>':''}</td><td>${o.qty}</td>
+    <td>${esc((o.date||'').slice(5))}</td><td>${esc(o.channel)}</td><td>${esc(o.site)}</td><td>${esc(o.product)}${o.memo?'<div class="hint">'+o.memo.split(' / ').map(esc).join('<br>')+'</div>':''}</td><td>${o.qty}</td>
     <td>${esc(o.name)}${!o.same&&o.buyer?'<div class="hint">주문: '+esc(o.buyer)+'</div>':''}</td><td>${esc(o.phone)}</td><td>${esc(o.zip)||'<span style="color:var(--danger)">없음</span>'}</td>
     <td>${esc(o.addr)} ${esc(o.detail)}</td><td>${esc(o.req)}</td>
     <td style="white-space:nowrap"><button class="btn sm" data-act="edit">수정</button> <button class="btn sm" data-act="copy">복사</button> <button class="btn sm danger" data-act="del">삭제</button></td></tr>`).join('');
