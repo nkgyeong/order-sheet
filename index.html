@@ -20,6 +20,12 @@ main{max-width:1180px;margin:0 auto;padding:18px 16px 60px;display:grid;gap:16px
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 14px;cursor:pointer;font:inherit;color:var(--ink)}
 .chip:hover{border-color:var(--pri)}
+.regbox{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px}
+.regchip{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.regchip button{font:inherit;border:0;background:transparent;color:var(--ink);cursor:pointer;padding:7px 4px 7px 14px}
+.regchip button.x{padding:7px 10px 7px 6px;color:var(--sub)}
+.regchip:hover{border-color:var(--pri)}
+.regchip button.x:hover{color:var(--danger)}
 .chip.on{background:var(--pri);border-color:var(--pri);color:#fff;font-weight:600}
 input[type=text],input[type=date],input[type=number],input[type=password],textarea,select{font:inherit;border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;background:#fff;color:var(--ink)}
 input:focus,textarea:focus{outline:2px solid var(--pri-weak);border-color:var(--pri)}
@@ -103,6 +109,10 @@ th{background:#f8f9fb;color:var(--sub);font-weight:600;white-space:nowrap}
   <!-- 02 고객 정보 -->
   <section class="card">
     <h2><span class="no">02</span> 고객 정보</h2>
+    <div class="regbox">
+      <div class="inline" style="flex-wrap:wrap"><b>★ 단골 고객</b><span class="hint">이름을 누르면 고객 정보가 바로 채워져요</span><span style="flex:1"></span><input type="text" id="regSearch" placeholder="단골 검색" style="max-width:160px"><button class="btn sm pri" id="btnRegSave">현재 고객을 단골로 저장</button></div>
+      <div class="chips" id="regList" style="margin-top:8px"></div>
+    </div>
     <div class="paste">
       <b>📋 고객정보 한 번에 붙여넣기</b>
       <div class="hint">카톡·문자 내용을 그대로 붙여넣으세요. 이름·전화번호·주소를 나누고 우편번호를 찾아 채워요.</div>
@@ -386,7 +396,7 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;',
 // ---- chips ----
 function renderChips(){
   const lists = { product:S.products, site:S.sites, channel:S.channels };
-  document.querySelectorAll('.chips').forEach(box=>{
+  document.querySelectorAll('.chips[data-group]').forEach(box=>{
     const g = box.dataset.group;
     const opts = lists[g].slice(); if(sel[g] && !opts.includes(sel[g])) opts.push(sel[g]);
     box.innerHTML = `<select class="pick" data-group="${g}" style="max-width:320px"><option value="">선택하세요</option>`+
@@ -519,6 +529,39 @@ function setMemo(s){ const box=$('memoList'); box.innerHTML=''; const arr=String
 function getMemo(){ return [...document.querySelectorAll('.memoInp')].map(i=>i.value.trim()).filter(Boolean).join(' / '); }
 setMemo('');
 
+// ---- 단골 고객 ----
+let regulars = LS.get('xx2_regulars', []);
+const REG_FIELDS = ['name','phone','zip','addr','detail','same','buyer','buyerPhone','req'];
+function regKey(c){ return (c.name||'')+'|'+String(c.phone||'').replace(/\D/g,''); }
+function saveRegular(src){
+  if(!src.name || !src.phone){ toast('이름과 전화번호가 있어야 단골로 저장돼요'); return; }
+  const c = {}; REG_FIELDS.forEach(k=>c[k]=src[k]);
+  const i = regulars.findIndex(x=>regKey(x)===regKey(c));
+  if(i>=0) regulars[i]=c; else regulars.push(c);
+  regulars.sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+  LS.set('xx2_regulars', regulars); renderRegulars();
+  toast(`${c.name} 님을 단골로 ${i>=0?'업데이트':'저장'}했어요`);
+}
+function renderRegulars(){
+  const q = $('regSearch').value.trim();
+  const box = $('regList'); box.innerHTML='';
+  const list = regulars.map((c,i)=>({c,i})).filter(({c})=>!q || c.name.includes(q) || String(c.phone).replace(/\D/g,'').includes(q.replace(/\D/g,'')||'@') || (c.addr||'').includes(q));
+  if(!regulars.length){ box.innerHTML='<span class="hint">아직 단골이 없어요. 고객 정보를 채운 뒤 "현재 고객을 단골로 저장"을 누르거나, 주문 목록의 ★를 누르세요.</span>'; return; }
+  if(!list.length){ box.innerHTML='<span class="hint">검색 결과가 없어요</span>'; return; }
+  list.forEach(({c,i})=>{
+    const w=document.createElement('span'); w.className='regchip';
+    const b=document.createElement('button'); b.type='button'; b.textContent=c.name; b.title=`${c.phone} · ${c.addr||''} ${c.detail||''}`;
+    b.onclick=()=>{ $('fName').value=c.name||''; $('fPhone').value=c.phone||''; $('fZip').value=c.zip||''; $('fAddr').value=c.addr||''; $('fDetail').value=c.detail||'';
+      $('fSame').checked=c.same!==false; $('fSame').onchange(); $('fBuyer').value=c.buyer||''; $('fBuyerPhone').value=c.buyerPhone||''; $('fReq').value=c.req||'';
+      $('cands').innerHTML=''; toast(`${c.name} 님 정보를 불러왔어요`); };
+    const x=document.createElement('button'); x.type='button'; x.className='x'; x.textContent='×'; x.title='단골에서 빼기';
+    x.onclick=()=>{ if(arm(x,'빼기?')) return; regulars.splice(i,1); LS.set('xx2_regulars', regulars); renderRegulars(); };
+    w.append(b,x); box.appendChild(w);
+  });
+}
+$('regSearch').oninput = renderRegulars;
+$('btnRegSave').onclick = ()=> saveRegular(readForm());
+
 // ---- 주문 저장 ----
 $('fSame').onchange = ()=>{ $('buyerBox').style.display = $('fSame').checked?'none':'grid'; };
 function readForm(){
@@ -567,7 +610,7 @@ function render(){
     <td>${esc((o.date||'').slice(5))}</td><td>${esc(o.channel)}</td><td>${esc(o.site)}</td><td>${esc(o.product)}${o.file?'<div class="hint">파일: '+esc(o.file)+'</div>':''}${o.memo?'<div class="hint">'+o.memo.split(' / ').map(esc).join('<br>')+'</div>':''}</td><td>${o.qty}</td>
     <td>${esc(o.name)}${!o.same&&o.buyer?'<div class="hint">주문: '+esc(o.buyer)+'</div>':''}</td><td>${esc(o.phone)}</td><td>${esc(o.zip)||'<span style="color:var(--danger)">없음</span>'}</td>
     <td>${esc(o.addr)} ${esc(o.detail)}</td><td>${esc(o.req)}</td>
-    <td style="white-space:nowrap"><button class="btn sm" data-act="edit">수정</button> <button class="btn sm" data-act="copy">복사</button> <button class="btn sm danger" data-act="del">삭제</button></td></tr>`).join('');
+    <td style="white-space:nowrap"><button class="btn sm" data-act="edit">수정</button> <button class="btn sm" data-act="copy">복사</button> <button class="btn sm" data-act="fav" title="단골로 저장">★</button> <button class="btn sm danger" data-act="del">삭제</button></td></tr>`).join('');
   const n = orders.filter(o=>o.checked).length;
   $('countInfo').textContent = `총 ${orders.length}건` + (n?` · 선택 ${n}건`:'');
   $('chkAll').checked = orders.length>0 && n===orders.length;
@@ -582,6 +625,7 @@ $('tbody').addEventListener('click', e=>{
   const id=b.closest('tr').dataset.id; const o=orders.find(x=>x.id===id);
   if(b.dataset.act==='del'){ if(confirm(o.name+' 님 주문을 삭제할까요?')){ orders=orders.filter(x=>x.id!==id); save(); render(); } }
   if(b.dataset.act==='edit'){ fillForm(o); editingId=id; $('btnAdd').textContent='✓ 수정 저장'; $('btnCancelEdit').style.display=''; $('cardOrder').classList.add('editing'); window.scrollTo({top:0,behavior:'smooth'}); }
+  if(b.dataset.act==='fav'){ saveRegular(o); }
   if(b.dataset.act==='copy'){ const c=Object.assign({},o,{id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),checked:false}); orders.splice(orders.indexOf(o)+1,0,c); save(); render(); toast('같은 고객으로 한 줄 복사했어요'); }
 });
 $('btnDelSel').onclick = ()=>{
@@ -620,7 +664,7 @@ $('btnPrint').onclick = ()=>{
 // ---- 기록 파일 저장 / 불러오기 ----
 $('btnBackup').onclick = async ()=>{
   if(!orders.length){ toast('저장할 주문이 없어요'); return; }
-  const data = JSON.stringify({app:'xx2-order-sheet', savedAt:new Date().toISOString(), orders}, null, 1);
+  const data = JSON.stringify({app:'xx2-order-sheet', savedAt:new Date().toISOString(), orders, regulars}, null, 1);
   await saveBlob(new Blob([data],{type:'application/json'}), `주문기록_${ymd()}.json`);
 };
 $('btnRestore').onclick = ()=> $('fileRestore').click();
@@ -631,6 +675,7 @@ $('fileRestore').onchange = e=>{
     try{
       const d = JSON.parse(r.result); const list = Array.isArray(d) ? d : d.orders;
       if(!Array.isArray(list)) throw 0;
+      if(Array.isArray(d.regulars)){ d.regulars.forEach(c=>{ if(!c||!c.name) return; const i=regulars.findIndex(x=>regKey(x)===regKey(c)); if(i>=0) regulars[i]=c; else regulars.push(c); }); LS.set('xx2_regulars', regulars); renderRegulars(); }
       let add=0, upd=0;
       list.forEach(o=>{ if(!o || !o.id) return; const i=orders.findIndex(x=>x.id===o.id); if(i>=0){ orders[i]=o; upd++; } else { orders.push(o); add++; } });
       save(); render(); toast(`불러왔어요: 새 주문 ${add}건, 갱신 ${upd}건`);
@@ -710,7 +755,7 @@ $('btnSaveSettings').onclick = ()=>{
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.modal').classList.remove('on'));
 
 $('fDate').value = today();
-renderChips(); render();
+renderChips(); render(); renderRegulars();
 window.__xx2 = { parseCustomer, buildInvoice, get orders(){return orders;} };
 })();
 </script>
